@@ -44,7 +44,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "http://127.0.0.1:5000/users/0",
+              "raw": "http://127.0.0.1:5000/users/2",
               "protocol": "http",
               "host": [
                 "127",
@@ -55,7 +55,7 @@
               "port": "5000",
               "path": [
                 "users",
-                "0"
+                "2"
               ]
             }
           },
@@ -143,7 +143,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"city\" : \"Arequipa\"\r\n}"
+              "raw": ""
             },
             "url": {
               "raw": "http://127.0.0.1:5000/users/1",

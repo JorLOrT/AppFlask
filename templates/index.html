@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask App - Tasks & Users Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; background: #f9f9f9; color: #333; }
+        h1 { text-align: center; }
+        .container { display: flex; gap: 20px; justify-content: space-between; flex-wrap: wrap; }
+        .section { flex: 1; min-width: 300px; background: #fff; border: 1px solid #ccc; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #444; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        form { display: grid; gap: 10px; margin-bottom: 20px; }
+        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; }
+        button { padding: 8px 12px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+        .btn-danger { background-color: #dc3545; font-size: 12px; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-success { background-color: #28a745; font-size: 12px; }
+        .btn-success:hover { background-color: #218838; }
+        .btn-warning { background-color: #ffc107; font-size: 12px; color: #000; }
+        .btn-warning:hover { background-color: #e0a800; }
+        .actions { display: flex; gap: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Flask Management Dashboard</h1>
+    <div class="container">
+        
+        <!-- TASKS SECTION -->
+        <div class="section">
+            <h2>Tasks</h2>
+            <!-- Form to create Tasks -->
+            <form id="task-form">
+                <input type="text" id="task-content" placeholder="New task to do..." required>
+                <div style="display: flex; gap: 5px;">
+                    <button type="submit" id="task-submit-btn">Add Task</button>
+                    <button type="button" id="task-cancel-btn" class="btn-danger" style="display: none;" onclick="cancelTaskEdit()">Cancel</button>
+                </div>
+            </form>
+            
+            <!-- Table to visualize Tasks -->
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Content</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tasks-table-body">
+                    <!-- Data will be loaded here via JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- USERS SECTION -->
+        <div class="section">
+            <h2>Users</h2>
+            <!-- Form to create Users -->
+            <form id="user-form">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="user-name" placeholder="First Name" required>
+                    <input type="text" id="user-lastname" placeholder="Last Name" required>
+                </div>
+                <input type="text" id="user-city" placeholder="City">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="user-country" placeholder="Country">
+                    <input type="text" id="user-postal" placeholder="Postal Code">
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button type="submit" id="user-submit-btn">Add User</button>
+                    <button type="button" id="user-cancel-btn" class="btn-danger" style="display: none;" onclick="cancelUserEdit()">Cancel</button>
+                </div>
+            </form>
+            
+            <!-- Table to visualize Users -->
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Address</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body">
+                    <!-- Data will be loaded here via JS -->
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        let currentTaskId = null;
+        let currentUserId = null;
+
+        /** ==============================
+         *  TASKS LOGIC
+         *  ============================== */
+        async function fetchTasks() {
+            const res = await fetch('/tasks');
+            const data = await res.json();
+            const tbody = document.getElementById('tasks-table-body');
+            tbody.innerHTML = '';
+            
+            data.tasks.forEach(task => {
+                const tr = document.createElement('tr');
+                const safeContent = task.content.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                tr.innerHTML = `
+                    <td>${task.id}</td>
+                    <td>${task.content}</td>
+                    <td>${task.done ? '✅ Done' : '⏳ Pending'}</td>
+                    <td class="actions">
+                        <button class="btn-success" onclick="toggleTask(${task.id}, ${task.done})"> Done? </button>
+                        <button class="btn-warning" onclick="editTask(${task.id}, '${safeContent}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteTask(${task.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editTask(id, content) {
+            currentTaskId = id;
+            document.getElementById('task-content').value = content;
+            document.getElementById('task-submit-btn').textContent = 'Update Task';
+            document.getElementById('task-cancel-btn').style.display = 'inline-block';
+        }
+
+        function cancelTaskEdit() {
+            currentTaskId = null;
+            document.getElementById('task-form').reset();
+            document.getElementById('task-submit-btn').textContent = 'Add Task';
+            document.getElementById('task-cancel-btn').style.display = 'none';
+        }
+
+        document.getElementById('task-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent page reload
+            const content = document.getElementById('task-content').value;
+            
+            if (currentTaskId !== null) {
+                await fetch(`/tasks/${currentTaskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                cancelTaskEdit();
+            } else {
+                await fetch('/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                document.getElementById('task-form').reset();
+            }
+            fetchTasks(); // Reload table
+        });
+
+        async function toggleTask(id, currentStatus) {
+            await fetch(`/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ done: !currentStatus })
+            });
+            fetchTasks();
+        }
+
+        async function deleteTask(id) {
+            await fetch(`/tasks/${id}`, { method: 'DELETE' });
+            fetchTasks();
+        }
+
+        /** ==============================
+         *  USERS LOGIC
+         *  ============================== */
+        async function fetchUsers() {
+            const res = await fetch('/users');
+            const data = await res.json();
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = '';
+            
+            data.users.forEach(user => {
+                const tr = document.createElement('tr');
+                const addr = user.address;
+                const addressString = `${addr.city || 'N/A'}, ${addr.country || 'N/A'} (${addr.postal_code || '-'})`;
+                
+                // Safe passing of strings to the function
+                const safeName = user.name.replace(/'/g, "\\'");
+                const safeLast = user.lastname.replace(/'/g, "\\'");
+                const safeCity = addr.city.replace(/'/g, "\\'");
+                const safeCountry = addr.country.replace(/'/g, "\\'");
+                const safePostal = addr.postal_code.replace(/'/g, "\\'");
+
+                tr.innerHTML = `
+                    <td>${user.id}</td>
+                    <td><b>${user.name} ${user.lastname}</b></td>
+                    <td>${addressString}</td>
+                    <td class="actions">
+                        <button class="btn-warning" onclick="editUser(${user.id}, '${safeName}', '${safeLast}', '${safeCity}', '${safeCountry}', '${safePostal}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function editUser(id, name, lastname, city, country, postal) {
+            currentUserId = id;
+            document.getElementById('user-name').value = name;
+            document.getElementById('user-lastname').value = lastname;
+            document.getElementById('user-city').value = city;
+            document.getElementById('user-country').value = country;
+            document.getElementById('user-postal').value = postal;
+            
+            document.getElementById('user-submit-btn').textContent = 'Update User';
+            document.getElementById('user-cancel-btn').style.display = 'inline-block';
+        }
+
+        function cancelUserEdit() {
+            currentUserId = null;
+            document.getElementById('user-form').reset();
+            document.getElementById('user-submit-btn').textContent = 'Add User';
+            document.getElementById('user-cancel-btn').style.display = 'none';
+        }
+
+        document.getElementById('user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('user-name').value;
+            const lastname = document.getElementById('user-lastname').value;
+            const city = document.getElementById('user-city').value;
+            const country = document.getElementById('user-country').value;
+            const postal_code = document.getElementById('user-postal').value;
+
+            const payload = {
+                name, 
+                lastname,
+                address: { city, country, postal_code }
+            };
+
+            if (currentUserId !== null) {
+                await fetch(`/users/${currentUserId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                cancelUserEdit();
+            } else {
+                await fetch('/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                document.getElementById('user-form').reset();
+            }
+            fetchUsers();
+        });
+
+        async function deleteUser(id) {
+            await fetch(`/users/${id}`, { method: 'DELETE' });
+            fetchUsers();
+        }
+
+        // Initially load both tables when page starts
+        window.onload = () => {
+            fetchTasks();
+            fetchUsers();
+        };
+    </script>
+</body>
+</html>

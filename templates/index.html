@@ -33,8 +33,18 @@
         <!-- TASKS SECTION -->
         <div class="section">
             <h2>Tasks</h2>
+            
+            <!-- User Selector for Tasks -->
+            <div style="margin-bottom: 20px; background: #eee; padding: 10px; border-radius: 5px;">
+                <label for="current-user-select"><strong>Current User:</strong></label>
+                <select id="current-user-select" style="padding: 5px; width: 60%;" onchange="fetchTasks()">
+                    <option value="">-- Select a User to manage tasks --</option>
+                </select>
+                <p style="font-size: 12px; margin: 5px 0 0 0; color: #666;">Selecciona un usuario de la lista para ver y crear sus tareas.</p>
+            </div>
+
             <!-- Form to create Tasks -->
-            <form id="task-form">
+            <form id="task-form" style="display: none;">
                 <input type="text" id="task-content" placeholder="New task to do..." required>
                 <div style="display: flex; gap: 5px;">
                     <button type="submit" id="task-submit-btn">Add Task</button>
@@ -43,7 +53,7 @@
             </form>
             
             <!-- Table to visualize Tasks -->
-            <table>
+            <table id="tasks-table" style="display: none;">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -56,6 +66,8 @@
                     <!-- Data will be loaded here via JS -->
                 </tbody>
             </table>
+            
+            <p id="no-user-message" style="text-align: center; color: #888;">No user selected.</p>
         </div>
 
         <!-- USERS SECTION -->
@@ -104,26 +116,47 @@
          *  TASKS LOGIC
          *  ============================== */
         async function fetchTasks() {
-            const res = await fetch('/tasks');
-            const data = await res.json();
+            const userSelect = document.getElementById('current-user-select');
+            const userId = userSelect.value;
             const tbody = document.getElementById('tasks-table-body');
+            const taskForm = document.getElementById('task-form');
+            const tasksTable = document.getElementById('tasks-table');
+            const noUserMsg = document.getElementById('no-user-message');
+            
             tbody.innerHTML = '';
             
-            data.tasks.forEach(task => {
-                const tr = document.createElement('tr');
-                const safeContent = task.content.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-                tr.innerHTML = `
-                    <td>${task.id}</td>
-                    <td>${task.content}</td>
-                    <td>${task.done ? '✅ Done' : '⏳ Pending'}</td>
-                    <td class="actions">
-                        <button class="btn-success" onclick="toggleTask(${task.id}, ${task.done})"> Done? </button>
-                        <button class="btn-warning" onclick="editTask(${task.id}, '${safeContent}')">Edit</button>
-                        <button class="btn-danger" onclick="deleteTask(${task.id})">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+            if (!userId) {
+                taskForm.style.display = 'none';
+                tasksTable.style.display = 'none';
+                noUserMsg.style.display = 'block';
+                return;
+            }
+            
+            taskForm.style.display = 'grid';
+            tasksTable.style.display = 'table';
+            noUserMsg.style.display = 'none';
+
+            const res = await fetch(`/users/${userId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            
+            if (data.user && data.user.tasks) {
+                data.user.tasks.forEach(task => {
+                    const tr = document.createElement('tr');
+                    const safeContent = task.content.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                    tr.innerHTML = `
+                        <td>${task.id}</td>
+                        <td>${task.content}</td>
+                        <td>${task.done ? '✅ Done' : '⏳ Pending'}</td>
+                        <td class="actions">
+                            <button class="btn-success" onclick="toggleTask(${task.id}, ${task.done})"> Done? </button>
+                            <button class="btn-warning" onclick="editTask(${task.id}, '${safeContent}')">Edit</button>
+                            <button class="btn-danger" onclick="deleteTask(${task.id})">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
         }
 
         function editTask(id, content) {
@@ -143,6 +176,7 @@
         document.getElementById('task-form').addEventListener('submit', async (e) => {
             e.preventDefault(); // Prevent page reload
             const content = document.getElementById('task-content').value;
+            const userId = document.getElementById('current-user-select').value;
             
             if (currentTaskId !== null) {
                 await fetch(`/tasks/${currentTaskId}`, {
@@ -155,7 +189,7 @@
                 await fetch('/tasks', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content })
+                    body: JSON.stringify({ content, user_id: userId })
                 });
                 document.getElementById('task-form').reset();
             }
@@ -183,31 +217,49 @@
             const res = await fetch('/users');
             const data = await res.json();
             const tbody = document.getElementById('users-table-body');
-            tbody.innerHTML = '';
+            const userSelect = document.getElementById('current-user-select');
+            const currentSelectedUser = userSelect.value;
             
-            data.users.forEach(user => {
-                const tr = document.createElement('tr');
-                const addr = user.address;
-                const addressString = `${addr.city || 'N/A'}, ${addr.country || 'N/A'} (${addr.postal_code || '-'})`;
-                
-                // Safe passing of strings to the function
-                const safeName = user.name.replace(/'/g, "\\'");
-                const safeLast = user.lastname.replace(/'/g, "\\'");
-                const safeCity = addr.city.replace(/'/g, "\\'");
-                const safeCountry = addr.country.replace(/'/g, "\\'");
-                const safePostal = addr.postal_code.replace(/'/g, "\\'");
+            tbody.innerHTML = '';
+            userSelect.innerHTML = '<option value="">-- Select a User to manage tasks --</option>';
+            
+            if (data.users) {
+                data.users.forEach(user => {
+                    // Populate table
+                    const tr = document.createElement('tr');
+                    const addr = user.address;
+                    const addressString = `${addr.city || 'N/A'}, ${addr.country || 'N/A'} (${addr.postal_code || '-'})`;
+                    
+                    const safeName = user.name.replace(/'/g, "\\'");
+                    const safeLast = user.lastname.replace(/'/g, "\\'");
+                    const safeCity = addr.city ? addr.city.replace(/'/g, "\\'") : '';
+                    const safeCountry = addr.country ? addr.country.replace(/'/g, "\\'") : '';
+                    const safePostal = addr.postal_code ? addr.postal_code.replace(/'/g, "\\'") : '';
 
-                tr.innerHTML = `
-                    <td>${user.id}</td>
-                    <td><b>${user.name} ${user.lastname}</b></td>
-                    <td>${addressString}</td>
-                    <td class="actions">
-                        <button class="btn-warning" onclick="editUser(${user.id}, '${safeName}', '${safeLast}', '${safeCity}', '${safeCountry}', '${safePostal}')">Edit</button>
-                        <button class="btn-danger" onclick="deleteUser(${user.id})">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+                    tr.innerHTML = `
+                        <td>${user.id}</td>
+                        <td><b>${user.name} ${user.lastname}</b></td>
+                        <td>${addressString}</td>
+                        <td class="actions">
+                            <button class="btn-warning" onclick="editUser(${user.id}, '${safeName}', '${safeLast}', '${safeCity}', '${safeCountry}', '${safePostal}')">Edit</button>
+                            <button class="btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+
+                    // Populate select
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = `${user.name} ${user.lastname} (ID: ${user.id})`;
+                    if (user.id == currentSelectedUser) {
+                        option.selected = true;
+                    }
+                    userSelect.appendChild(option);
+                });
+            }
+            
+            // Refresh tasks based on the (potentially) updated selection
+            fetchTasks();
         }
 
         function editUser(id, name, lastname, city, country, postal) {
@@ -268,8 +320,8 @@
 
         // Initially load both tables when page starts
         window.onload = () => {
-            fetchTasks();
             fetchUsers();
+            // fetchTasks is automatically called at the end of fetchUsers via fetchTasks()
         };
     </script>
 </body>

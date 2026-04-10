@@ -7,6 +7,7 @@ def create_app():
 
     # Load configuration
     app.config["SQLALCHEMY_DATABASE_URI"] = config.SQLALCHEMY_DATABASE_URI
+    app.config["SQLALCHEMY_BINDS"] = config.SQLALCHEMY_BINDS
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = config.SQLALCHEMY_TRACK_MODIFICATIONS
     app.config["SECRET_KEY"] = config.SECRET_KEY
 
